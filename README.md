@@ -1,6 +1,14 @@
-# Lab 8 - Pygame
+# Lab 8 - Pygame Moving Squares
 
-Simple moving-squares visualization for class.
+A small Pygame demo that draws 10 squares and moves them around the screen.
+
+## What It Shows
+
+- A simple game loop
+- Randomized movement
+- Basic edge bouncing
+- Keyboard input for speed changes
+- On-screen speed indicator
 
 ## Run
 
@@ -13,4 +21,16 @@ python main.py
 
 ## Controls
 
-- `q` or `Esc` quit
+- `Up` or `+`: speed up
+- `Down` or `-`: slow down
+- `R`: randomize all squares
+- `Q` or `Esc`: quit
+
+## Notes
+
+The drawing happens in the main loop:
+1. Read events
+2. Update square positions
+3. Clear the screen
+4. Draw the squares and overlay text
+5. Present the frame
