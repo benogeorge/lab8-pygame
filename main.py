@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import random
 from dataclasses import dataclass
 
@@ -9,13 +10,23 @@ import pygame
 WIDTH = 960
 HEIGHT = 540
 FPS = 60
-SQUARE_COUNT = 10
+SQUARE_COUNT = 24
 BACKGROUND = (18, 18, 24)
 TEXT_COLOR = (235, 235, 235)
 ACCENT_COLOR = (120, 220, 255)
+MIN_SQUARE_SIZE = 18
+MAX_SQUARE_SIZE = 72
 MIN_SPEED_SCALE = 0.25
 MAX_SPEED_SCALE = 4.0
 SPEED_STEP = 0.25
+MIN_SIZE_SPEED_FACTOR = 1.5
+MAX_SIZE_SPEED_FACTOR = 0.55
+MIN_TURN_INTERVAL = 8
+MAX_TURN_INTERVAL = 26
+MAX_TURN_ANGLE = 0.5
+MIN_WOBBLE_ANGLE = 0.01
+MAX_WOBBLE_ANGLE = 0.11
+WOBBLE_CHANCE = 0.22
 
 
 @dataclass
@@ -25,11 +36,38 @@ class Square:
     vx: float
     vy: float
     size: int
+    speed_factor: float
+    turn_timer: int
     color: pygame.Color
 
     def update(self, width: int, height: int, speed_scale: float) -> None:
-        self.x += self.vx * speed_scale
-        self.y += self.vy * speed_scale
+        if random.random() < WOBBLE_CHANCE:
+            wobble_angle = random.uniform(-MAX_WOBBLE_ANGLE, MAX_WOBBLE_ANGLE)
+            if abs(wobble_angle) < MIN_WOBBLE_ANGLE:
+                wobble_angle = MIN_WOBBLE_ANGLE if wobble_angle >= 0 else -MIN_WOBBLE_ANGLE
+            cos_angle = math.cos(wobble_angle)
+            sin_angle = math.sin(wobble_angle)
+            old_vx = self.vx
+            old_vy = self.vy
+            self.vx = old_vx * cos_angle - old_vy * sin_angle
+            self.vy = old_vx * sin_angle + old_vy * cos_angle
+
+        self.turn_timer -= 1
+        if self.turn_timer <= 0:
+            angle = random.uniform(-MAX_TURN_ANGLE, MAX_TURN_ANGLE)
+            cos_angle = math.cos(angle)
+            sin_angle = math.sin(angle)
+            old_vx = self.vx
+            old_vy = self.vy
+            self.vx = old_vx * cos_angle - old_vy * sin_angle
+            self.vy = old_vx * sin_angle + old_vy * cos_angle
+            self.turn_timer = random.randint(MIN_TURN_INTERVAL, MAX_TURN_INTERVAL)
+            self.vx *= random.uniform(0.92, 1.08)
+            self.vy *= random.uniform(0.92, 1.08)
+
+        movement_scale = speed_scale * self.speed_factor
+        self.x += self.vx * movement_scale
+        self.y += self.vy * movement_scale
 
         if self.x <= 0:
             self.x = 0
@@ -54,17 +92,30 @@ class Square:
 
 
 def create_square(width: int, height: int) -> Square:
-    size = random.randint(24, 54)
+    size = random.randint(MIN_SQUARE_SIZE, MAX_SQUARE_SIZE)
     x = random.randint(0, width - size)
     y = random.randint(0, height - size)
     vx = random.choice([-1, 1]) * random.uniform(1.5, 4.0)
     vy = random.choice([-1, 1]) * random.uniform(1.5, 4.0)
+    size_ratio = (size - MIN_SQUARE_SIZE) / (MAX_SQUARE_SIZE - MIN_SQUARE_SIZE)
+    speed_factor = MAX_SIZE_SPEED_FACTOR + (1 - size_ratio) * (
+        MIN_SIZE_SPEED_FACTOR - MAX_SIZE_SPEED_FACTOR
+    )
     color = pygame.Color(
         random.randint(70, 240),
         random.randint(70, 240),
         random.randint(70, 240),
     )
-    return Square(x=x, y=y, vx=vx, vy=vy, size=size, color=color)
+    return Square(
+        x=x,
+        y=y,
+        vx=vx,
+        vy=vy,
+        size=size,
+        speed_factor=speed_factor,
+        turn_timer=random.randint(MIN_TURN_INTERVAL, MAX_TURN_INTERVAL),
+        color=color,
+    )
 
 
 def create_squares(count: int, width: int, height: int) -> list[Square]:
@@ -74,6 +125,7 @@ def create_squares(count: int, width: int, height: int) -> list[Square]:
 def draw_overlay(surface: pygame.Surface, font: pygame.font.Font, speed_scale: float) -> None:
     lines = [
         "Lab 8 - Moving Squares",
+        f"Squares: {SQUARE_COUNT}",
         f"Speed: {speed_scale:.2f}x",
         "Up/Down or +/- change speed, R randomizes all squares, Q/Esc quit",
     ]
