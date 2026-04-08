@@ -1,16 +1,6 @@
 
 
 ### **New Interaction**
-- **Date**: 03-30-2026 18:25
-- **User**: benogeorge
-- **Prompt**: make the squares move faster and show the current speed on screen
-- **CoPilot Mode**: Agent
-- **CoPilot Model**: GPT-5
-- **Changes Made**: Added speed controls to the moving-squares animation, exposed the current speed on screen, and kept the app simple enough to study during class.
-- **Context and Reasons for Changes**: The lab8 demo felt too static at a fixed speed, so I added keyboard controls to make the motion easier to demonstrate and experiment with.
-- **My Observations**: The render loop is still the main idea: handle input, update state, draw, and flip the frame.
-
-### **New Interaction**
 - **Date**: 03-30-2026 18:32
 - **User**: benogeorge
 - **Prompt**: make the animation smoother and a bit more interesting
