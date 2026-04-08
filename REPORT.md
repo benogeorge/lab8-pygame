@@ -3,7 +3,7 @@
 # First Impressions - Initial Take on the Project Assignment
 ## In this section, students will provide their initial thoughts on the project assignment, including their understanding of the requirements, any assumptions they made, points that need clarification, and their overall approach to tackling the project.
 ## Initial Thoughts
-This looked like a small graphics lab focused on Pygame basics: create a simple window, animate a handful of objects, and understand the render loop.
+
 ## Assumptions Made
 I assumed the goal was a lightweight animation rather than a physics simulation. I also assumed the squares should bounce off the edges of the window and keep moving until the app is closed.
 ## Points Needing Clarification
@@ -21,7 +21,7 @@ I used Pygame for the first time in this lab setup and learned how rectangle dra
 # Report on CoPilot Prompting Experience
 ## Student may pull examples from the JOURNAL.md to illustrate their experience, including specific interactions that were particularly helpful or challenging.
 ### Types of prompts that worked well
-“Review this function against these constraints (pure / no loops / immutable inputs)” and “suggest test cases for this function”.
+
 
 #### Prompts I Used
 - “I tried to run `main.py`, but Python isn’t available in this terminal environment. Give me step-by-step commands to check if Python exists,  install it if missing, and  rerun the script.”
