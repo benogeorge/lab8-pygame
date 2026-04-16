@@ -34,6 +34,10 @@ SHADOW_OFFSET = 4
 LOOKAHEAD_FRAMES = 10
 SIDE_STEER_WEIGHT = 0.96
 AWAY_STEER_WEIGHT = 0.16
+MIN_LIFE_SECONDS = 6
+MAX_LIFE_SECONDS = 14
+MIN_LIFE_FRAMES = FPS * MIN_LIFE_SECONDS
+MAX_LIFE_FRAMES = FPS * MAX_LIFE_SECONDS
 
 
 @dataclass
@@ -45,6 +49,8 @@ class Square:
     size: int
     speed_factor: float
     color: pygame.Color
+    life_remaining: int
+    life_max: int
 
     def apply_flee(self, others: list["Square"]) -> None:
         if self.size == BIG_SQUARE_SIZE:
@@ -153,7 +159,7 @@ class Square:
             self.vx *= scale
             self.vy *= scale
 
-    def update(self, width: int, height: int, speed_scale: float, squares: list["Square"]) -> None:
+    def update(self, width: int, height: int, speed_scale: float, squares: list["Square"]) -> bool:
         self.apply_flee(squares)
         movement_scale = speed_scale
         self.x += self.vx * movement_scale
@@ -175,6 +181,18 @@ class Square:
         self.vx *= STEER_DAMPING
         self.vy *= STEER_DAMPING
         self.recover_cruise_velocity()
+        self.life_remaining -= 1
+        return self.life_remaining <= 0
+
+    def rebirth(self, width: int, height: int) -> None:
+        fresh = create_square(width, height, self.size)
+        self.x = fresh.x
+        self.y = fresh.y
+        self.vx = fresh.vx
+        self.vy = fresh.vy
+        self.color = fresh.color
+        self.life_max = random.randint(MIN_LIFE_FRAMES, MAX_LIFE_FRAMES)
+        self.life_remaining = self.life_max
 
     def draw(self, surface: pygame.Surface) -> None:
         center_x = self.x + self.size / 2
@@ -225,6 +243,7 @@ def create_square(width: int, height: int, size: int) -> Square:
         190 if size == BIG_SQUARE_SIZE else 235,
         220 if size == BIG_SQUARE_SIZE else 120,
     )
+    life_max = random.randint(MIN_LIFE_FRAMES, MAX_LIFE_FRAMES)
     return Square(
         x=x,
         y=y,
@@ -233,6 +252,8 @@ def create_square(width: int, height: int, size: int) -> Square:
         size=size,
         speed_factor=speed_factor,
         color=color,
+        life_remaining=life_max,
+        life_max=life_max,
     )
 
 
@@ -292,12 +313,15 @@ def resolve_collisions(squares: list[Square]) -> None:
                 b.vy = old_a_vy * COLLISION_BOUNCE
 
 
-def draw_overlay(surface: pygame.Surface, font: pygame.font.Font, speed_scale: float) -> None:
+def draw_overlay(surface: pygame.Surface, font: pygame.font.Font, speed_scale: float, squares: list[Square]) -> None:
     small_count = SQUARE_COUNT - BIGGER_SQUARE_COUNT
+    rebirth_soon = sum(1 for square in squares if square.life_remaining <= FPS * 2)
     lines = [
         "Lab 8 ",
         f"Squares: {small_count} small, {BIGGER_SQUARE_COUNT} big",
         f"Speed: {speed_scale:.2f}x",
+        f"Rebirth soon (<=2s): {rebirth_soon}",
+        "Each square has a life timer. When it ends, the square respawns.",
         "Small squares steer away from big squares, Up/Down or +/- change speed, R resets, Q/Esc quit",
     ]
 
@@ -335,13 +359,14 @@ def main() -> None:
                 speed_scale = 1.0
 
         for square in squares:
-            square.update(WIDTH, HEIGHT, speed_scale, squares)
+            if square.update(WIDTH, HEIGHT, speed_scale, squares):
+                square.rebirth(WIDTH, HEIGHT)
         resolve_collisions(squares)
 
         screen.fill(BACKGROUND)
         for square in squares:
             square.draw(screen)
-        draw_overlay(screen, font, speed_scale)
+        draw_overlay(screen, font, speed_scale, squares)
 
         pygame.display.flip()
         clock.tick(FPS)

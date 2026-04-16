@@ -8,6 +8,7 @@ A small Pygame demo that draws 10 squares and moves them around the screen. Smal
 - Randomized movement
 - Basic edge bouncing
 - Flee behavior for smaller squares
+- Life span timer and rebirth (respawn) for each square
 - Keyboard input for speed changes
 - On-screen speed indicator
 
