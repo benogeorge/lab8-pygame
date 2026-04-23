@@ -1,5 +1,16 @@
 
 ### **New Interaction**
+- **Date**: 04-23-2026 16:52
+- **User**: beno.george@epita.fr
+- **Prompt**: generate the code explorer site on this project
+- **CoPilot Mode**: Agent
+- **CoPilot Model**: GPT-5.3-Codex
+- **Changes Made**: Refreshed `code-explorer/data.js` with current repository-aligned file summaries/tags/snippets (including explorer assets and docs), added Safari compatibility in `code-explorer/styles.css` via `-webkit-backdrop-filter`, validated diagnostics, and smoke-tested the site over a static server with HTTP 200 at `/code-explorer/`.
+- **Context and Reasons for Changes**: The user requested generation of the code explorer site for this project; the existing scaffold was kept and regenerated so the explorer content accurately reflects current source and documentation files.
+- **My Observations**: 
+
+
+### **New Interaction**
 - **Date**: 04-13-2026 11:52
 - **User**: beno.george@epita.fr
 - **Prompt**: generate the code explorer site on this project
