@@ -26,7 +26,11 @@ SMALL_SPEED_FACTOR = 1.24
 BIG_SPEED_FACTOR = 0.62
 BASE_CRUISE_SPEED = 2.0
 FLEE_RADIUS = 150
+CHASE_RADIUS = 260
 STEER_STRENGTH = 0.2
+CHASE_STEER_STRENGTH = 0.13
+WANDER_CHANCE = 0.06
+WANDER_STRENGTH = 0.08
 MAX_STEER_SPEED = 4.6
 STEER_DAMPING = 0.988
 COLLISION_BOUNCE = 0.92
@@ -143,6 +147,49 @@ class Square:
             self.vx *= scale
             self.vy *= scale
 
+    def apply_chase(self, others: list["Square"]) -> None:
+        if self.size != BIG_SQUARE_SIZE:
+            return
+
+        center_x = self.x + self.size / 2
+        center_y = self.y + self.size / 2
+        nearest: Square | None = None
+        nearest_distance = CHASE_RADIUS
+
+        for other in others:
+            if other is self or other.size >= self.size:
+                continue
+            other_x = other.x + other.size / 2
+            other_y = other.y + other.size / 2
+            dx = other_x - center_x
+            dy = other_y - center_y
+            distance = math.hypot(dx, dy)
+            if distance < nearest_distance and distance > 0:
+                nearest = other
+                nearest_distance = distance
+
+        if nearest is None:
+            return
+
+        target_x = nearest.x + nearest.size / 2
+        target_y = nearest.y + nearest.size / 2
+        dx = target_x - center_x
+        dy = target_y - center_y
+        distance = math.hypot(dx, dy)
+        if distance == 0:
+            return
+
+        steer_x = (dx / distance) * CHASE_STEER_STRENGTH
+        steer_y = (dy / distance) * CHASE_STEER_STRENGTH
+        self.vx += steer_x
+        self.vy += steer_y
+
+    def apply_wander(self) -> None:
+        if random.random() > WANDER_CHANCE:
+            return
+        self.vx += random.uniform(-WANDER_STRENGTH, WANDER_STRENGTH)
+        self.vy += random.uniform(-WANDER_STRENGTH, WANDER_STRENGTH)
+
     def recover_cruise_velocity(self) -> None:
         speed = math.hypot(self.vx, self.vy)
         target_speed = BASE_CRUISE_SPEED * self.speed_factor
@@ -161,6 +208,8 @@ class Square:
 
     def update(self, width: int, height: int, speed_scale: float, squares: list["Square"]) -> bool:
         self.apply_flee(squares)
+        self.apply_chase(squares)
+        self.apply_wander()
         movement_scale = speed_scale
         self.x += self.vx * movement_scale
         self.y += self.vy * movement_scale
@@ -322,7 +371,7 @@ def draw_overlay(surface: pygame.Surface, font: pygame.font.Font, speed_scale: f
         f"Speed: {speed_scale:.2f}x",
         f"Rebirth soon (<=2s): {rebirth_soon}",
         "Each square has a life timer. When it ends, the square respawns.",
-        "Small squares steer away from big squares, Up/Down or +/- change speed, R resets, Q/Esc quit",
+        "Small squares flee, big squares chase, and both wander. Up/Down or +/- change speed, R resets, Q/Esc quit",
     ]
 
     x = 18

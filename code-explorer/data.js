@@ -14,15 +14,16 @@ export const explorerData = {
       path: "main.py",
       type: "Source",
       language: "python",
-      size: "260+ lines",
-      summary: "Main animation loop with flee steering, collision response, and overlay rendering.",
-      tags: ["loop", "flee", "collision", "controls", "draw"],
+      size: "300+ lines",
+      summary: "Main animation loop with flee, chase, wandering, collision response, and overlay rendering.",
+      tags: ["loop", "flee", "chase", "wander", "collision", "controls", "draw"],
       highlights: [
         "Square dataclass stores position, velocity, size, and render color.",
-        "Small squares steer around larger threats using weighted side and away vectors.",
+        "Small squares steer around larger threats while big squares chase the closest small square.",
+        "Wander adds small random pushes so movement stays lively.",
         "Main loop handles events, updates state, resolves collisions, and draws each frame."
       ],
-      snippet: "from __future__ import annotations\n\nimport math\nimport random\nfrom dataclasses import dataclass\n\nimport pygame\n\nWIDTH = 1500\nHEIGHT = 800\nFPS = 60\nSQUARE_COUNT = 20\nFLEE_RADIUS = 150\n\n@dataclass\nclass Square:\n    x: float\n    y: float\n    vx: float\n    vy: float\n    size: int\n\n    def apply_flee(self, others: list[\"Square\"]) -> None:\n        if self.size == BIG_SQUARE_SIZE:\n            return\n        # Flee computation omitted in this snippet\n\ndef main() -> None:\n    pygame.init()\n    screen = pygame.display.set_mode((WIDTH, HEIGHT))\n    clock = pygame.time.Clock()\n\n    running = True\n    while running:\n        for event in pygame.event.get():\n            if event.type == pygame.QUIT:\n                running = False\n\n        # update -> collide -> draw -> flip\n        pygame.display.flip()\n        clock.tick(FPS)"
+      snippet: "from __future__ import annotations\n\nimport math\nimport random\nfrom dataclasses import dataclass\n\nimport pygame\n\nWIDTH = 1500\nHEIGHT = 800\nFPS = 60\nSQUARE_COUNT = 20\nFLEE_RADIUS = 150\nCHASE_RADIUS = 260\n\n@dataclass\nclass Square:\n    x: float\n    y: float\n    vx: float\n    vy: float\n    size: int\n\n    def apply_flee(self, others: list[\"Square\"]) -> None:\n        if self.size == BIG_SQUARE_SIZE:\n            return\n        # small squares move away from big ones\n\n    def apply_chase(self, others: list[\"Square\"]) -> None:\n        if self.size != BIG_SQUARE_SIZE:\n            return\n        # big squares move toward the closest small one\n\n    def apply_wander(self) -> None:\n        # small random movement for all squares\n        ...\n\ndef main() -> None:\n    pygame.init()\n    screen = pygame.display.set_mode((WIDTH, HEIGHT))\n    clock = pygame.time.Clock()\n\n    running = True\n    while running:\n        for event in pygame.event.get():\n            if event.type == pygame.QUIT:\n                running = False\n\n        # update -> collide -> draw -> flip\n        pygame.display.flip()\n        clock.tick(FPS)"
     },
     {
       path: "watch.py",
@@ -95,7 +96,7 @@ export const explorerData = {
     },
     {
       title: "Behavior Layer",
-      body: "Flee steering and cruise recovery give simple but expressive motion for small and large squares."
+      body: "Small squares flee, big squares chase, and everyone gets a little wander for less predictable movement."
     },
     {
       title: "Iteration Workflow",

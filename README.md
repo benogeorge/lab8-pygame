@@ -1,6 +1,9 @@
 # Lab 8 - Pygame Moving Squares
 
-A small Pygame demo that draws 10 squares and moves them around the screen. Smaller squares steer away from larger squares when they get close.
+A small Pygame demo that draws moving squares.
+Small squares flee from big squares.
+Big squares chase small squares.
+All squares still have a little random wandering so motion is not too robotic.
 
 ## What It Shows
 
@@ -8,6 +11,8 @@ A small Pygame demo that draws 10 squares and moves them around the screen. Smal
 - Randomized movement
 - Basic edge bouncing
 - Flee behavior for smaller squares
+- Chase behavior for bigger squares
+- Random wandering noise
 - Life span timer and rebirth (respawn) for each square
 - Keyboard input for speed changes
 - On-screen speed indicator
