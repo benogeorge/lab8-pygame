@@ -1,395 +1,227 @@
-from __future__ import annotations
-
 import math
 import random
-from dataclasses import dataclass
 
 import pygame
 
 
-WIDTH = 1500
-HEIGHT = 800
+WIDTH = 1200
+HEIGHT = 700
 FPS = 60
-SQUARE_COUNT = 20
-BACKGROUND = (18, 18, 24)
-TEXT_COLOR = (235, 235, 235)
-ACCENT_COLOR = (120, 220, 255)
-SHADOW_COLOR = (6, 6, 10)
-TRAIL_COLOR = (150, 215, 255)
-SMALL_SQUARE_SIZE = 10
-BIG_SQUARE_SIZE = 40
-BIGGER_SQUARE_COUNT = 5
-MIN_SPEED_SCALE = 0.25
-MAX_SPEED_SCALE = 4.0
-SPEED_STEP = 0.25
-SMALL_SPEED_FACTOR = 1.24
-BIG_SPEED_FACTOR = 0.62
-BASE_CRUISE_SPEED = 2.0
-FLEE_RADIUS = 150
+
+SMALL_SIZE = 14
+BIG_SIZE = 36
+SMALL_COUNT = 15
+BIG_COUNT = 5
+
+SMALL_SPEED = 2.8
+BIG_SPEED = 2.2
+FLEE_RADIUS = 170
 CHASE_RADIUS = 260
-STEER_STRENGTH = 0.2
-CHASE_STEER_STRENGTH = 0.13
-WANDER_CHANCE = 0.06
-WANDER_STRENGTH = 0.08
-MAX_STEER_SPEED = 4.6
-STEER_DAMPING = 0.988
-COLLISION_BOUNCE = 0.92
-SHADOW_OFFSET = 4
-LOOKAHEAD_FRAMES = 10
-SIDE_STEER_WEIGHT = 0.96
-AWAY_STEER_WEIGHT = 0.16
-MIN_LIFE_SECONDS = 6
-MAX_LIFE_SECONDS = 14
-MIN_LIFE_FRAMES = FPS * MIN_LIFE_SECONDS
-MAX_LIFE_FRAMES = FPS * MAX_LIFE_SECONDS
+WANDER = 0.22
+
+BG = (20, 20, 28)
+SMALL_COLOR = (100, 230, 120)
+BIG_COLOR = (90, 140, 255)
+TEXT = (235, 235, 235)
 
 
-@dataclass
-class Square:
-    x: float
-    y: float
-    vx: float
-    vy: float
-    size: int
-    speed_factor: float
-    color: pygame.Color
-    life_remaining: int
-    life_max: int
-
-    def apply_flee(self, others: list["Square"]) -> None:
-        if self.size == BIG_SQUARE_SIZE:
-            return
-
-        center_x = self.x + self.size / 2
-        center_y = self.y + self.size / 2
-        threats: list[tuple[float, float, float]] = []
-        self_speed = math.hypot(self.vx, self.vy)
-        if self_speed > 0.01:
-            forward_x = self.vx / self_speed
-            forward_y = self.vy / self_speed
-        else:
-            forward_x = 1.0
-            forward_y = 0.0
-
-        for other in others:
-            if other is self or other.size <= self.size:
-                continue
-
-            predicted_other_x = (
-                other.x
-                + other.size / 2
-                + other.vx * other.speed_factor * LOOKAHEAD_FRAMES
-            )
-            predicted_other_y = (
-                other.y
-                + other.size / 2
-                + other.vy * other.speed_factor * LOOKAHEAD_FRAMES
-            )
-            dx = center_x - predicted_other_x
-            dy = center_y - predicted_other_y
-            distance = math.hypot(dx, dy)
-
-            if distance == 0 or distance > FLEE_RADIUS:
-                continue
-
-            influence = (FLEE_RADIUS - distance) / FLEE_RADIUS
-            size_bias = 1 + (other.size - self.size) / BIG_SQUARE_SIZE
-            away_x = dx / distance
-            away_y = dy / distance
-            side_a_x = -away_y
-            side_a_y = away_x
-            side_b_x = away_y
-            side_b_y = -away_x
-            if forward_x * side_a_x + forward_y * side_a_y >= forward_x * side_b_x + forward_y * side_b_y:
-                side_x = side_a_x
-                side_y = side_a_y
-            else:
-                side_x = side_b_x
-                side_y = side_b_y
-            threats.append(
-                (
-                    distance,
-                    (side_x * SIDE_STEER_WEIGHT + away_x * AWAY_STEER_WEIGHT) * influence * size_bias,
-                    (side_y * SIDE_STEER_WEIGHT + away_y * AWAY_STEER_WEIGHT) * influence * size_bias,
-                )
-            )
-
-        if not threats:
-            return
-
-        threats.sort(key=lambda item: item[0])
-        steer_x = 0.0
-        steer_y = 0.0
-        weight_total = 0.0
-        for index, (distance, away_x, away_y) in enumerate(threats[:2]):
-            weight = 1.0 if index == 0 else 0.45
-            closeness = 1 - distance / FLEE_RADIUS
-            steer_x += away_x * weight * closeness
-            steer_y += away_y * weight * closeness
-            weight_total += weight
-
-        if weight_total > 0:
-            steer_x /= weight_total
-            steer_y /= weight_total
-
-        accel = math.hypot(steer_x, steer_y)
-        if accel > STEER_STRENGTH:
-            scale = STEER_STRENGTH / accel
-            steer_x *= scale
-            steer_y *= scale
-        self.vx += steer_x
-        self.vy += steer_y
-
-        speed = math.hypot(self.vx, self.vy)
-        max_speed = MAX_STEER_SPEED * self.speed_factor
-        if speed > max_speed:
-            scale = max_speed / speed
-            self.vx *= scale
-            self.vy *= scale
-
-    def apply_chase(self, others: list["Square"]) -> None:
-        if self.size != BIG_SQUARE_SIZE:
-            return
-
-        center_x = self.x + self.size / 2
-        center_y = self.y + self.size / 2
-        nearest: Square | None = None
-        nearest_distance = CHASE_RADIUS
-
-        for other in others:
-            if other is self or other.size >= self.size:
-                continue
-            other_x = other.x + other.size / 2
-            other_y = other.y + other.size / 2
-            dx = other_x - center_x
-            dy = other_y - center_y
-            distance = math.hypot(dx, dy)
-            if distance < nearest_distance and distance > 0:
-                nearest = other
-                nearest_distance = distance
-
-        if nearest is None:
-            return
-
-        target_x = nearest.x + nearest.size / 2
-        target_y = nearest.y + nearest.size / 2
-        dx = target_x - center_x
-        dy = target_y - center_y
-        distance = math.hypot(dx, dy)
-        if distance == 0:
-            return
-
-        steer_x = (dx / distance) * CHASE_STEER_STRENGTH
-        steer_y = (dy / distance) * CHASE_STEER_STRENGTH
-        self.vx += steer_x
-        self.vy += steer_y
-
-    def apply_wander(self) -> None:
-        if random.random() > WANDER_CHANCE:
-            return
-        self.vx += random.uniform(-WANDER_STRENGTH, WANDER_STRENGTH)
-        self.vy += random.uniform(-WANDER_STRENGTH, WANDER_STRENGTH)
-
-    def recover_cruise_velocity(self) -> None:
-        speed = math.hypot(self.vx, self.vy)
-        target_speed = BASE_CRUISE_SPEED * self.speed_factor
-
-        if speed < 0.01:
-            angle = random.uniform(0, math.tau)
-            self.vx = math.cos(angle) * target_speed
-            self.vy = math.sin(angle) * target_speed
-            return
-
-        if speed < target_speed:
-            blend = 0.18
-            scale = (speed * (1 - blend) + target_speed * blend) / speed
-            self.vx *= scale
-            self.vy *= scale
-
-    def update(self, width: int, height: int, speed_scale: float, squares: list["Square"]) -> bool:
-        self.apply_flee(squares)
-        self.apply_chase(squares)
-        self.apply_wander()
-        movement_scale = speed_scale
-        self.x += self.vx * movement_scale
-        self.y += self.vy * movement_scale
-
-        if self.x <= 0:
-            self.x = 0
-            self.vx *= -1
-        elif self.x + self.size >= width:
-            self.x = width - self.size
-            self.vx *= -1
-
-        if self.y <= 0:
-            self.y = 0
-            self.vy *= -1
-        elif self.y + self.size >= height:
-            self.y = height - self.size
-            self.vy *= -1
-        self.vx *= STEER_DAMPING
-        self.vy *= STEER_DAMPING
-        self.recover_cruise_velocity()
-        self.life_remaining -= 1
-        return self.life_remaining <= 0
-
-    def rebirth(self, width: int, height: int) -> None:
-        fresh = create_square(width, height, self.size)
-        self.x = fresh.x
-        self.y = fresh.y
-        self.vx = fresh.vx
-        self.vy = fresh.vy
-        self.color = fresh.color
-        self.life_max = random.randint(MIN_LIFE_FRAMES, MAX_LIFE_FRAMES)
-        self.life_remaining = self.life_max
-
-    def draw(self, surface: pygame.Surface) -> None:
-        center_x = self.x + self.size / 2
-        center_y = self.y + self.size / 2
-        speed = math.hypot(self.vx, self.vy)
-        if speed > 0.01:
-            trail_length = self.size * 0.55
-            trail_end = (
-                int(center_x - (self.vx / speed) * trail_length),
-                int(center_y - (self.vy / speed) * trail_length),
-            )
-            pygame.draw.line(
-                surface,
-                TRAIL_COLOR,
-                (int(center_x), int(center_y)),
-                trail_end,
-                width=2,
-            )
-
-        shadow_rect = pygame.Rect(
-            int(self.x) + SHADOW_OFFSET,
-            int(self.y) + SHADOW_OFFSET,
-            self.size,
-            self.size,
-        )
-        pygame.draw.rect(surface, SHADOW_COLOR, shadow_rect)
-
-        rect = pygame.Rect(int(self.x), int(self.y), self.size, self.size)
-        pygame.draw.rect(
-            surface,
-            self.color,
-            rect,
-        )
-        highlight = tuple(min(255, channel + 28) for channel in self.color[:3])
-        pygame.draw.rect(surface, highlight, rect, width=2)
+def new_square(is_big: bool) -> dict:
+    size = BIG_SIZE if is_big else SMALL_SIZE
+    speed = BIG_SPEED if is_big else SMALL_SPEED
+    a = random.uniform(0, math.tau)
+    return {
+        "x": random.randint(0, WIDTH - size),
+        "y": random.randint(0, HEIGHT - size),
+        "vx": math.cos(a) * speed,
+        "vy": math.sin(a) * speed,
+        "size": size,
+        "big": is_big,
+    }
 
 
-def create_square(width: int, height: int, size: int) -> Square:
-    x = random.randint(0, width - size)
-    y = random.randint(0, height - size)
-    angle = random.uniform(0, math.tau)
-    speed_factor = SMALL_SPEED_FACTOR if size == SMALL_SQUARE_SIZE else BIG_SPEED_FACTOR
-    base_speed = BASE_CRUISE_SPEED * speed_factor
-    vx = math.cos(angle) * base_speed
-    vy = math.sin(angle) * base_speed
-    color = pygame.Color(
-        110 if size == BIG_SQUARE_SIZE else 170,
-        190 if size == BIG_SQUARE_SIZE else 235,
-        220 if size == BIG_SQUARE_SIZE else 120,
-    )
-    life_max = random.randint(MIN_LIFE_FRAMES, MAX_LIFE_FRAMES)
-    return Square(
-        x=x,
-        y=y,
-        vx=vx,
-        vy=vy,
-        size=size,
-        speed_factor=speed_factor,
-        color=color,
-        life_remaining=life_max,
-        life_max=life_max,
+def overlaps(a: dict, b: dict) -> bool:
+    return (
+        a["x"] < b["x"] + b["size"]
+        and a["x"] + a["size"] > b["x"]
+        and a["y"] < b["y"] + b["size"]
+        and a["y"] + a["size"] > b["y"]
     )
 
 
-def create_squares(count: int, width: int, height: int) -> list[Square]:
-    squares: list[Square] = []
-    big_count = min(BIGGER_SQUARE_COUNT, count)
-    small_count = count - big_count
-
-    for _ in range(big_count):
-        squares.append(create_square(width, height, BIG_SQUARE_SIZE))
-    for _ in range(small_count):
-        squares.append(create_square(width, height, SMALL_SQUARE_SIZE))
-
+def make_squares() -> list[dict]:
+    squares = []
+    for _ in range(BIG_COUNT):
+        placed = False
+        for _ in range(150):
+            s = new_square(True)
+            if all(not overlaps(s, other) for other in squares):
+                squares.append(s)
+                placed = True
+                break
+        if not placed:
+            squares.append(new_square(True))
+    for _ in range(SMALL_COUNT):
+        placed = False
+        for _ in range(150):
+            s = new_square(False)
+            if all(not overlaps(s, other) for other in squares):
+                squares.append(s)
+                placed = True
+                break
+        if not placed:
+            squares.append(new_square(False))
     return squares
 
 
-def resolve_collisions(squares: list[Square]) -> None:
-    total = len(squares)
-    for i in range(total):
+def move_toward(s: dict, tx: float, ty: float, amount: float) -> None:
+    cx = s["x"] + s["size"] / 2
+    cy = s["y"] + s["size"] / 2
+    dx = tx - cx
+    dy = ty - cy
+    d = math.hypot(dx, dy)
+    if d > 0:
+        s["vx"] += (dx / d) * amount
+        s["vy"] += (dy / d) * amount
+
+
+def move_away(s: dict, tx: float, ty: float, amount: float) -> None:
+    move_toward(s, tx, ty, -amount)
+
+
+def limit_speed(s: dict) -> None:
+    max_speed = BIG_SPEED if s["big"] else SMALL_SPEED
+    speed = math.hypot(s["vx"], s["vy"])
+    if speed > max_speed:
+        scale = max_speed / speed
+        s["vx"] *= scale
+        s["vy"] *= scale
+
+
+def update_square(s: dict, squares: list[dict], speed_scale: float) -> None:
+    cx = s["x"] + s["size"] / 2
+    cy = s["y"] + s["size"] / 2
+
+    # Keep random wandering
+    s["vx"] += random.uniform(-WANDER, WANDER)
+    s["vy"] += random.uniform(-WANDER, WANDER)
+
+    if s["big"]:
+        # Big squares chase nearest small square
+        target = None
+        best = CHASE_RADIUS
+        for other in squares:
+            if other["big"]:
+                continue
+            ox = other["x"] + other["size"] / 2
+            oy = other["y"] + other["size"] / 2
+            d = math.hypot(ox - cx, oy - cy)
+            if d < best:
+                best = d
+                target = (ox, oy)
+        if target is not None:
+            move_toward(s, target[0], target[1], 0.18)
+    else:
+        # Small squares flee from close big squares
+        for other in squares:
+            if not other["big"]:
+                continue
+            ox = other["x"] + other["size"] / 2
+            oy = other["y"] + other["size"] / 2
+            d = math.hypot(ox - cx, oy - cy)
+            if d < FLEE_RADIUS:
+                strength = (FLEE_RADIUS - d) / FLEE_RADIUS
+                move_away(s, ox, oy, 0.45 * strength)
+
+    limit_speed(s)
+    s["x"] += s["vx"] * speed_scale
+    s["y"] += s["vy"] * speed_scale
+
+    # Bounce on edges
+    if s["x"] < 0:
+        s["x"] = 0
+        s["vx"] *= -1
+    if s["x"] + s["size"] > WIDTH:
+        s["x"] = WIDTH - s["size"]
+        s["vx"] *= -1
+    if s["y"] < 0:
+        s["y"] = 0
+        s["vy"] *= -1
+    if s["y"] + s["size"] > HEIGHT:
+        s["y"] = HEIGHT - s["size"]
+        s["vy"] *= -1
+
+
+def resolve_collisions(squares: list[dict]) -> None:
+    for i in range(len(squares)):
         a = squares[i]
-        for j in range(i + 1, total):
+        for j in range(i + 1, len(squares)):
             b = squares[j]
-            overlap_x = min(a.x + a.size, b.x + b.size) - max(a.x, b.x)
-            overlap_y = min(a.y + a.size, b.y + b.size) - max(a.y, b.y)
+            if not overlaps(a, b):
+                continue
+
+            overlap_x = min(a["x"] + a["size"], b["x"] + b["size"]) - max(a["x"], b["x"])
+            overlap_y = min(a["y"] + a["size"], b["y"] + b["size"]) - max(a["y"], b["y"])
 
             if overlap_x <= 0 or overlap_y <= 0:
                 continue
 
-            center_ax = a.x + a.size / 2
-            center_ay = a.y + a.size / 2
-            center_bx = b.x + b.size / 2
-            center_by = b.y + b.size / 2
-
             if overlap_x < overlap_y:
                 push = overlap_x / 2
-                if center_ax < center_bx:
-                    a.x -= push
-                    b.x += push
+                if a["x"] < b["x"]:
+                    a["x"] -= push
+                    b["x"] += push
                 else:
-                    a.x += push
-                    b.x -= push
-
-                old_a_vx = a.vx
-                a.vx = b.vx * COLLISION_BOUNCE
-                b.vx = old_a_vx * COLLISION_BOUNCE
+                    a["x"] += push
+                    b["x"] -= push
+                a["vx"], b["vx"] = b["vx"], a["vx"]
             else:
                 push = overlap_y / 2
-                if center_ay < center_by:
-                    a.y -= push
-                    b.y += push
+                if a["y"] < b["y"]:
+                    a["y"] -= push
+                    b["y"] += push
                 else:
-                    a.y += push
-                    b.y -= push
+                    a["y"] += push
+                    b["y"] -= push
+                a["vy"], b["vy"] = b["vy"], a["vy"]
 
-                old_a_vy = a.vy
-                a.vy = b.vy * COLLISION_BOUNCE
-                b.vy = old_a_vy * COLLISION_BOUNCE
+            # keep inside screen after push
+            a["x"] = max(0, min(a["x"], WIDTH - a["size"]))
+            a["y"] = max(0, min(a["y"], HEIGHT - a["size"]))
+            b["x"] = max(0, min(b["x"], WIDTH - b["size"]))
+            b["y"] = max(0, min(b["y"], HEIGHT - b["size"]))
 
 
-def draw_overlay(surface: pygame.Surface, font: pygame.font.Font, speed_scale: float, squares: list[Square]) -> None:
-    small_count = SQUARE_COUNT - BIGGER_SQUARE_COUNT
-    rebirth_soon = sum(1 for square in squares if square.life_remaining <= FPS * 2)
-    lines = [
-        "Lab 8 ",
-        f"Squares: {small_count} small, {BIGGER_SQUARE_COUNT} big",
-        f"Speed: {speed_scale:.2f}x",
-        f"Rebirth soon (<=2s): {rebirth_soon}",
-        "Each square has a life timer. When it ends, the square respawns.",
-        "Small squares flee, big squares chase, and both wander. Up/Down or +/- change speed, R resets, Q/Esc quit",
-    ]
+def draw(screen: pygame.Surface, font: pygame.font.Font, squares: list[dict], speed_scale: float) -> None:
+    screen.fill(BG)
+    for s in squares:
+        color = BIG_COLOR if s["big"] else SMALL_COLOR
+        pygame.draw.rect(screen, color, (int(s["x"]), int(s["y"]), s["size"], s["size"]))
+    msg = "Solid squares (no overlap) | Big chase | Small flee | Wander | +/- speed | R reset | Esc quit"
+    t1 = font.render(msg, True, TEXT)
+    t2 = font.render(f"Speed: {speed_scale:.2f}x", True, TEXT)
+    screen.blit(t1, (12, 10))
+    screen.blit(t2, (12, 36))
+    pygame.display.flip()
 
-    x = 18
-    y = 14
-    for index, line in enumerate(lines):
-        color = ACCENT_COLOR if index == 0 else TEXT_COLOR
-        text = font.render(line, True, color)
-        surface.blit(text, (x, y))
-        y += text.get_height() + 4
+
+def change_speed(speed_scale: float, up: bool) -> float:
+    if up:
+        return min(3.0, speed_scale + 0.25)
+    return max(0.25, speed_scale - 0.25)
 
 
 def main() -> None:
+    global WIDTH, HEIGHT
     pygame.init()
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Lab 8 - Fleeing Squares")
+    info = pygame.display.Info()
+    WIDTH = info.current_w
+    HEIGHT = info.current_h
+    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
+    pygame.display.set_caption("Moving Squares - Simple Version")
     clock = pygame.time.Clock()
     font = pygame.font.Font(None, 28)
-    squares = create_squares(SQUARE_COUNT, WIDTH, HEIGHT)
+
+    squares = make_squares()
     speed_scale = 1.0
     running = True
 
@@ -397,27 +229,25 @@ def main() -> None:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            elif event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_q):
-                running = False
-            elif event.type == pygame.KEYDOWN and event.key in (pygame.K_UP, pygame.K_EQUALS, pygame.K_PLUS):
-                speed_scale = min(MAX_SPEED_SCALE, speed_scale + SPEED_STEP)
-            elif event.type == pygame.KEYDOWN and event.key in (pygame.K_DOWN, pygame.K_MINUS, pygame.K_KP_MINUS):
-                speed_scale = max(MIN_SPEED_SCALE, speed_scale - SPEED_STEP)
-            elif event.type == pygame.KEYDOWN and event.key == pygame.K_r:
-                squares = create_squares(SQUARE_COUNT, WIDTH, HEIGHT)
-                speed_scale = 1.0
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+                elif event.key == pygame.K_r:
+                    squares = make_squares()
+                    speed_scale = 1.0
+                elif event.key in (pygame.K_UP, pygame.K_KP_PLUS):
+                    speed_scale = change_speed(speed_scale, True)
+                elif event.key in (pygame.K_DOWN, pygame.K_KP_MINUS):
+                    speed_scale = change_speed(speed_scale, False)
+                elif event.unicode in ("+", "="):
+                    speed_scale = change_speed(speed_scale, True)
+                elif event.unicode in ("-", "_"):
+                    speed_scale = change_speed(speed_scale, False)
 
-        for square in squares:
-            if square.update(WIDTH, HEIGHT, speed_scale, squares):
-                square.rebirth(WIDTH, HEIGHT)
+        for s in squares:
+            update_square(s, squares, speed_scale)
         resolve_collisions(squares)
-
-        screen.fill(BACKGROUND)
-        for square in squares:
-            square.draw(screen)
-        draw_overlay(screen, font, speed_scale, squares)
-
-        pygame.display.flip()
+        draw(screen, font, squares, speed_scale)
         clock.tick(FPS)
 
     pygame.quit()
