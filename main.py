@@ -8,26 +8,44 @@ WIDTH = 1200
 HEIGHT = 700
 FPS = 60
 
-SMALL_SIZE = 14
-BIG_SIZE = 36
-SMALL_COUNT = 15
-BIG_COUNT = 5
-
-SMALL_SPEED = 2.8
-BIG_SPEED = 2.2
-FLEE_RADIUS = 170
-CHASE_RADIUS = 260
+SQUARE_COUNT = 20
+MIN_SIZE = 12
+MAX_SIZE = 42
+MIN_SPEED = 1.8
+MAX_SPEED = 3.2
+FLEE_RADIUS = 190
+CHASE_RADIUS = 280
 WANDER = 0.22
+CORNER_MARGIN = 22
+MIN_MOTION_RATIO = 0.35
 
 BG = (20, 20, 28)
-SMALL_COLOR = (100, 230, 120)
-BIG_COLOR = (90, 140, 255)
 TEXT = (235, 235, 235)
 
 
-def new_square(is_big: bool) -> dict:
-    size = BIG_SIZE if is_big else SMALL_SIZE
-    speed = BIG_SPEED if is_big else SMALL_SPEED
+def speed_for_size(size: int) -> float:
+    size_range = MAX_SIZE - MIN_SIZE
+    if size_range == 0:
+        return MIN_SPEED
+    size_ratio = (size - MIN_SIZE) / size_range
+    return MAX_SPEED - size_ratio * (MAX_SPEED - MIN_SPEED)
+
+
+def color_for_size(size: int) -> tuple[int, int, int]:
+    size_range = MAX_SIZE - MIN_SIZE
+    if size_range == 0:
+        ratio = 0.5
+    else:
+        ratio = (size - MIN_SIZE) / size_range
+    red = int(90 + 20 * ratio)
+    green = int(230 - 90 * ratio)
+    blue = int(120 + 135 * ratio)
+    return (red, green, blue)
+
+
+def new_square() -> dict:
+    size = random.randint(MIN_SIZE, MAX_SIZE)
+    speed = speed_for_size(size)
     a = random.uniform(0, math.tau)
     return {
         "x": random.randint(0, WIDTH - size),
@@ -35,7 +53,6 @@ def new_square(is_big: bool) -> dict:
         "vx": math.cos(a) * speed,
         "vy": math.sin(a) * speed,
         "size": size,
-        "big": is_big,
     }
 
 
@@ -50,26 +67,16 @@ def overlaps(a: dict, b: dict) -> bool:
 
 def make_squares() -> list[dict]:
     squares = []
-    for _ in range(BIG_COUNT):
+    for _ in range(SQUARE_COUNT):
         placed = False
         for _ in range(150):
-            s = new_square(True)
+            s = new_square()
             if all(not overlaps(s, other) for other in squares):
                 squares.append(s)
                 placed = True
                 break
         if not placed:
-            squares.append(new_square(True))
-    for _ in range(SMALL_COUNT):
-        placed = False
-        for _ in range(150):
-            s = new_square(False)
-            if all(not overlaps(s, other) for other in squares):
-                squares.append(s)
-                placed = True
-                break
-        if not placed:
-            squares.append(new_square(False))
+            squares.append(new_square())
     return squares
 
 
@@ -89,12 +96,41 @@ def move_away(s: dict, tx: float, ty: float, amount: float) -> None:
 
 
 def limit_speed(s: dict) -> None:
-    max_speed = BIG_SPEED if s["big"] else SMALL_SPEED
+    max_speed = speed_for_size(s["size"])
     speed = math.hypot(s["vx"], s["vy"])
     if speed > max_speed:
         scale = max_speed / speed
         s["vx"] *= scale
         s["vy"] *= scale
+
+
+def keep_motion_alive(s: dict) -> None:
+    min_speed = speed_for_size(s["size"]) * MIN_MOTION_RATIO
+    speed = math.hypot(s["vx"], s["vy"])
+    if speed < min_speed:
+        angle = random.uniform(0, math.tau)
+        s["vx"] = math.cos(angle) * min_speed
+        s["vy"] = math.sin(angle) * min_speed
+
+
+def unstick_from_corners(s: dict) -> None:
+    near_left = s["x"] <= CORNER_MARGIN
+    near_right = s["x"] + s["size"] >= WIDTH - CORNER_MARGIN
+    near_top = s["y"] <= CORNER_MARGIN
+    near_bottom = s["y"] + s["size"] >= HEIGHT - CORNER_MARGIN
+
+    if near_left and near_top:
+        s["vx"] = abs(s["vx"]) + 0.3
+        s["vy"] = abs(s["vy"]) + 0.3
+    elif near_left and near_bottom:
+        s["vx"] = abs(s["vx"]) + 0.3
+        s["vy"] = -abs(s["vy"]) - 0.3
+    elif near_right and near_top:
+        s["vx"] = -abs(s["vx"]) - 0.3
+        s["vy"] = abs(s["vy"]) + 0.3
+    elif near_right and near_bottom:
+        s["vx"] = -abs(s["vx"]) - 0.3
+        s["vy"] = -abs(s["vy"]) - 0.3
 
 
 def update_square(s: dict, squares: list[dict], speed_scale: float) -> None:
@@ -105,32 +141,27 @@ def update_square(s: dict, squares: list[dict], speed_scale: float) -> None:
     s["vx"] += random.uniform(-WANDER, WANDER)
     s["vy"] += random.uniform(-WANDER, WANDER)
 
-    if s["big"]:
-        # Big squares chase nearest small square
-        target = None
-        best = CHASE_RADIUS
-        for other in squares:
-            if other["big"]:
-                continue
-            ox = other["x"] + other["size"] / 2
-            oy = other["y"] + other["size"] / 2
-            d = math.hypot(ox - cx, oy - cy)
-            if d < best:
-                best = d
-                target = (ox, oy)
-        if target is not None:
-            move_toward(s, target[0], target[1], 0.18)
-    else:
-        # Small squares flee from close big squares
-        for other in squares:
-            if not other["big"]:
-                continue
-            ox = other["x"] + other["size"] / 2
-            oy = other["y"] + other["size"] / 2
-            d = math.hypot(ox - cx, oy - cy)
-            if d < FLEE_RADIUS:
-                strength = (FLEE_RADIUS - d) / FLEE_RADIUS
-                move_away(s, ox, oy, 0.45 * strength)
+    target = None
+    best = CHASE_RADIUS
+    for other in squares:
+        if other is s:
+            continue
+
+        ox = other["x"] + other["size"] / 2
+        oy = other["y"] + other["size"] / 2
+        d = math.hypot(ox - cx, oy - cy)
+
+        if other["size"] > s["size"] and d < FLEE_RADIUS:
+            strength = (FLEE_RADIUS - d) / FLEE_RADIUS
+            size_gap = (other["size"] - s["size"]) / MAX_SIZE
+            move_away(s, ox, oy, (0.28 + size_gap * 0.35) * strength)
+
+        if other["size"] < s["size"] and d < best:
+            best = d
+            target = (ox, oy)
+
+    if target is not None:
+        move_toward(s, target[0], target[1], 0.16)
 
     limit_speed(s)
     s["x"] += s["vx"] * speed_scale
@@ -149,6 +180,10 @@ def update_square(s: dict, squares: list[dict], speed_scale: float) -> None:
     if s["y"] + s["size"] > HEIGHT:
         s["y"] = HEIGHT - s["size"]
         s["vy"] *= -1
+
+    unstick_from_corners(s)
+    keep_motion_alive(s)
+    limit_speed(s)
 
 
 def resolve_collisions(squares: list[dict]) -> None:
@@ -189,14 +224,18 @@ def resolve_collisions(squares: list[dict]) -> None:
             a["y"] = max(0, min(a["y"], HEIGHT - a["size"]))
             b["x"] = max(0, min(b["x"], WIDTH - b["size"]))
             b["y"] = max(0, min(b["y"], HEIGHT - b["size"]))
+            unstick_from_corners(a)
+            unstick_from_corners(b)
+            keep_motion_alive(a)
+            keep_motion_alive(b)
 
 
 def draw(screen: pygame.Surface, font: pygame.font.Font, squares: list[dict], speed_scale: float) -> None:
     screen.fill(BG)
     for s in squares:
-        color = BIG_COLOR if s["big"] else SMALL_COLOR
+        color = color_for_size(s["size"])
         pygame.draw.rect(screen, color, (int(s["x"]), int(s["y"]), s["size"], s["size"]))
-    msg = "Solid squares (no overlap) | Big chase | Small flee | Wander | +/- speed | R reset | Esc quit"
+    msg = "Squares compare sizes: chase smaller, flee larger, wander, no overlap | +/- speed | R reset | Esc quit"
     t1 = font.render(msg, True, TEXT)
     t2 = font.render(f"Speed: {speed_scale:.2f}x", True, TEXT)
     screen.blit(t1, (12, 10))
