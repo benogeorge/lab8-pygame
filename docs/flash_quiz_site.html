@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lab8 Study Deck - Flash Cards and Quiz</title>
+  <style>
+    :root {
+      --bg-a: #f4f1e8;
+      --bg-b: #dfe8f0;
+      --panel: #fffdfa;
+      --ink: #1f2b36;
+      --muted: #4f5f6d;
+      --brand: #b2410f;
+      --brand-2: #6b2a0d;
+      --accent: #197278;
+      --ok: #1f7a45;
+      --bad: #ad1c3d;
+      --line: #d8d4cd;
+      --shadow: 0 14px 34px rgba(31, 43, 54, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(1200px 500px at 8% -8%, #f7dcb6 0%, transparent 45%),
+        radial-gradient(900px 400px at 92% -4%, #b8d8d8 0%, transparent 45%),
+        linear-gradient(135deg, var(--bg-a), var(--bg-b));
+      min-height: 100vh;
+    }
+
+    .frame {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 24px 16px 42px;
+      animation: slideIn 420ms ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .hero {
+      background: rgba(255, 253, 250, 0.85);
+      border: 1px solid #efe6db;
+      border-radius: 18px;
+      padding: 16px 18px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(2px);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.9rem;
+      letter-spacing: 0.01em;
+      color: var(--brand-2);
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .assumptions {
+      margin-top: 12px;
+      background: #fff3df;
+      border: 1px solid #e7cfa7;
+      border-radius: 12px;
+      padding: 10px 12px;
+      color: #5a421f;
+      font-size: 0.96rem;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: #ffffff;
+      color: var(--ink);
+      padding: 11px 13px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease;
+    }
+
+    .btn:hover {
+      border-color: var(--brand);
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn.active {
+      color: #fff;
+      background: linear-gradient(135deg, var(--brand), #df641f);
+      border-color: var(--brand);
+    }
+
+    .panel {
+      margin-top: 14px;
+      background: var(--panel);
+      border: 1px solid #efe6db;
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      animation: fadeIn 260ms ease-out;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 0.98rem;
+      margin-bottom: 10px;
+    }
+
+    .card-shell {
+      perspective: 1000px;
+      margin-bottom: 12px;
+    }
+
+    .card {
+      min-height: 200px;
+      border-radius: 15px;
+      border: 1px solid var(--line);
+      background: linear-gradient(150deg, #fffdfa, #f8f6ef);
+      padding: 16px;
+      display: grid;
+      align-content: center;
+      gap: 8px;
+      transition: transform 220ms ease;
+    }
+
+    .card.flip {
+      transform: rotateY(3deg) scale(0.995);
+    }
+
+    .chip {
+      display: inline-block;
+      width: max-content;
+      border: 1px solid #d5c9b8;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: #eef8f8;
+      font-weight: 700;
+    }
+
+    .card-text {
+      font-size: 1.11rem;
+      line-height: 1.45;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .controls .btn {
+      flex: 1 1 140px;
+    }
+
+    .quiz-question {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .option {
+      width: 100%;
+      text-align: left;
+      margin: 6px 0;
+      padding: 10px 12px;
+      border-radius: 11px;
+      border: 1px solid var(--line);
+      background: #fff;
+      cursor: pointer;
+      transition: border-color 120ms ease, background-color 120ms ease;
+    }
+
+    .option:hover {
+      border-color: #c59f80;
+      background: #fff9f2;
+    }
+
+    .option.correct {
+      border-color: var(--ok);
+      background: #e9f7ef;
+    }
+
+    .option.wrong {
+      border-color: var(--bad);
+      background: #fdecef;
+    }
+
+    .status {
+      min-height: 1.4em;
+      margin-top: 8px;
+      font-weight: 700;
+    }
+
+    .status.ok {
+      color: var(--ok);
+    }
+
+    .status.bad {
+      color: var(--bad);
+    }
+
+    @media (max-width: 700px) {
+      h1 {
+        font-size: 1.52rem;
+      }
+
+      .card {
+        min-height: 220px;
+      }
+
+      .controls .btn {
+        flex-basis: 46%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="frame">
+    <section class="hero">
+      <h1>Lab8 Pygame Study Deck</h1>
+      <p class="subtitle">Flash cards and quiz questions based on the real files and runtime flow in this repository: architecture, constants, controls, and behavior.</p>
+      <div class="assumptions">
+        Assumption note: README mentions "life span timer and rebirth," but this is not visible in the current main runtime loop, so this deck focuses on code-confirmed behavior.
+      </div>
+
+      <div class="tabs">
+        <button class="btn active" id="tab-cards" type="button">Flash Cards</button>
+        <button class="btn" id="tab-quiz" type="button">Quiz Mode</button>
+      </div>
+    </section>
+
+    <section class="panel" id="cards-panel">
+      <div class="meta" id="card-count"></div>
+      <div class="card-shell">
+        <article class="card" id="card">
+          <span class="chip" id="card-side">Question</span>
+          <div class="card-text" id="card-text"></div>
+        </article>
+      </div>
+      <div class="controls">
+        <button class="btn" id="prev-card" type="button">Previous</button>
+        <button class="btn" id="flip-card" type="button">Flip</button>
+        <button class="btn" id="next-card" type="button">Next</button>
+        <button class="btn" id="shuffle-cards" type="button">Shuffle</button>
+      </div>
+    </section>
+
+    <section class="panel hidden" id="quiz-panel">
+      <div class="meta" id="quiz-count"></div>
+      <div class="quiz-question" id="quiz-question"></div>
+      <div id="quiz-options"></div>
+      <div class="status" id="quiz-status"></div>
+      <div class="controls">
+        <button class="btn" id="next-question" type="button">Next Question</button>
+        <button class="btn" id="restart-quiz" type="button">Restart Quiz</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const flashCards = [
+      { q: "What is the main role of main.py?", a: "It contains the app entry point, event loop, square updates, collision resolution, and drawing." },
+      { q: "What is watch.py used for?", a: "It starts main.py and restarts it when any .py file in the project folder changes." },
+      { q: "What does SQUARE_COUNT control?", a: "The number of squares created at startup. Current value: 20." },
+      { q: "How does speed_for_size(size) shape movement?", a: "It gives smaller squares higher max speed and larger squares lower max speed." },
+      { q: "Which constants define chase and flee range?", a: "FLEE_RADIUS = 190 and CHASE_RADIUS = 280." },
+      { q: "What does WANDER add each frame?", a: "Random velocity noise in both x and y to keep motion less robotic." },
+      { q: "How does a square flee a bigger one?", a: "update_square computes distance and applies move_away with strength scaled by distance and size gap." },
+      { q: "How does a square chase a smaller one?", a: "It picks the nearest smaller square inside CHASE_RADIUS and steers toward it." },
+      { q: "What does resolve_collisions() do?", a: "It detects overlap pairs, pushes them apart, swaps velocity components, and clamps them inside screen bounds." },
+      { q: "Why call keep_motion_alive()?", a: "To prevent squares from slowing near zero by enforcing a minimum motion ratio." },
+      { q: "What keys are important for users?", a: "Up/+ speed up, Down/- slow down, R reset squares and speed, Esc exits." },
+      { q: "What is one architecture limitation today?", a: "Most logic lives in one file, which increases coupling between input, simulation, and rendering." },
+      { q: "What does make_squares() guarantee as best effort?", a: "It attempts to place squares without initial overlap, trying up to 150 attempts per square." },
+      { q: "How is screen size chosen at runtime?", a: "main() reads pygame.display.Info() and uses fullscreen dimensions from the current display." }
+    ];
+
+    const quizBank = [
+      {
+        q: "Which file contains the main loop for gameplay updates?",
+        options: ["requirements.txt", "main.py", "watch.py", "REPORT.md"],
+        answer: 1
+      },
+      {
+        q: "What is the default square count constant?",
+        options: ["12", "16", "20", "24"],
+        answer: 2
+      },
+      {
+        q: "Which function prevents velocity from exceeding size-based limits?",
+        options: ["draw", "limit_speed", "overlaps", "latest_mtime"],
+        answer: 1
+      },
+      {
+        q: "How is speed scale changed by keyboard input?",
+        options: ["By 1.0 steps", "By 0.5 steps", "By 0.1 steps", "By 0.25 steps"],
+        answer: 3
+      },
+      {
+        q: "What range is enforced by change_speed()?",
+        options: ["0.25 to 3.0", "0.5 to 2.0", "0.1 to 5.0", "1.0 to 2.0"],
+        answer: 0
+      },
+      {
+        q: "Which constant adds random movement noise every frame?",
+        options: ["MIN_SPEED", "WANDER", "CORNER_MARGIN", "FPS"],
+        answer: 1
+      },
+      {
+        q: "How does watch.py decide to restart the child process?",
+        options: ["When FPS drops", "When key R is pressed", "When latest .py mtime changes", "Every 60 seconds"],
+        answer: 2
+      },
+      {
+        q: "What does overlaps(a, b) return?",
+        options: ["Color similarity score", "Whether two rectangles intersect", "Distance from center", "Whether speed is equal"],
+        answer: 1
+      },
+      {
+        q: "What is the frame cap target in main.py?",
+        options: ["30 FPS", "45 FPS", "60 FPS", "120 FPS"],
+        answer: 2
+      },
+      {
+        q: "Which statement about behavior is correct?",
+        options: ["Smaller squares flee larger ones", "Larger squares flee smaller ones", "No square can chase", "No collisions are resolved"],
+        answer: 0
+      },
+      {
+        q: "What happens when the user presses R?",
+        options: ["Only speed resets", "Only colors reset", "Squares and speed reset", "App closes"],
+        answer: 2
+      },
+      {
+        q: "What is a practical architecture refactor mentioned in docs?",
+        options: ["Delete watch.py", "Split simulation, render, and input modules", "Remove constants", "Use global mutable state only"],
+        answer: 1
+      }
+    ];
+
+    const tabCards = document.getElementById("tab-cards");
+    const tabQuiz = document.getElementById("tab-quiz");
+    const cardsPanel = document.getElementById("cards-panel");
+    const quizPanel = document.getElementById("quiz-panel");
+
+    const cardEl = document.getElementById("card");
+    const cardCount = document.getElementById("card-count");
+    const cardSide = document.getElementById("card-side");
+    const cardText = document.getElementById("card-text");
+    const prevCardBtn = document.getElementById("prev-card");
+    const nextCardBtn = document.getElementById("next-card");
+    const flipCardBtn = document.getElementById("flip-card");
+    const shuffleCardsBtn = document.getElementById("shuffle-cards");
+
+    const quizCount = document.getElementById("quiz-count");
+    const quizQuestion = document.getElementById("quiz-question");
+    const quizOptions = document.getElementById("quiz-options");
+    const quizStatus = document.getElementById("quiz-status");
+    const nextQuestionBtn = document.getElementById("next-question");
+    const restartQuizBtn = document.getElementById("restart-quiz");
+
+    let cardIndex = 0;
+    let showingAnswer = false;
+
+    let questionIndex = 0;
+    let score = 0;
+    let locked = false;
+
+    function shuffleArray(items) {
+      for (let i = items.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [items[i], items[j]] = [items[j], items[i]];
+      }
+    }
+
+    function renderCard() {
+      const item = flashCards[cardIndex];
+      cardCount.textContent = "Card " + (cardIndex + 1) + " / " + flashCards.length;
+      cardSide.textContent = showingAnswer ? "Answer" : "Question";
+      cardText.textContent = showingAnswer ? item.a : item.q;
+      cardEl.classList.add("flip");
+      setTimeout(() => cardEl.classList.remove("flip"), 180);
+    }
+
+    function resetCardView() {
+      showingAnswer = false;
+      renderCard();
+    }
+
+    prevCardBtn.addEventListener("click", () => {
+      cardIndex = (cardIndex - 1 + flashCards.length) % flashCards.length;
+      resetCardView();
+    });
+
+    nextCardBtn.addEventListener("click", () => {
+      cardIndex = (cardIndex + 1) % flashCards.length;
+      resetCardView();
+    });
+
+    flipCardBtn.addEventListener("click", () => {
+      showingAnswer = !showingAnswer;
+      renderCard();
+    });
+
+    shuffleCardsBtn.addEventListener("click", () => {
+      shuffleArray(flashCards);
+      cardIndex = 0;
+      resetCardView();
+    });
+
+    function renderQuestion() {
+      const q = quizBank[questionIndex];
+      locked = false;
+      quizStatus.textContent = "";
+      quizStatus.className = "status";
+      quizCount.textContent = "Question " + (questionIndex + 1) + " / " + quizBank.length + " | Score: " + score;
+      quizQuestion.textContent = q.q;
+      quizOptions.innerHTML = "";
+
+      q.options.forEach((opt, idx) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "option";
+        button.textContent = opt;
+        button.addEventListener("click", () => pickAnswer(button, idx));
+        quizOptions.appendChild(button);
+      });
+    }
+
+    function pickAnswer(button, idx) {
+      if (locked) {
+        return;
+      }
+
+      locked = true;
+      const q = quizBank[questionIndex];
+      const optionButtons = Array.from(quizOptions.querySelectorAll(".option"));
+      optionButtons[q.answer].classList.add("correct");
+
+      if (idx === q.answer) {
+        score += 1;
+        quizStatus.textContent = "Correct.";
+        quizStatus.classList.add("ok");
+      } else {
+        button.classList.add("wrong");
+        quizStatus.textContent = "Incorrect. Correct answer: " + q.options[q.answer];
+        quizStatus.classList.add("bad");
+      }
+
+      quizCount.textContent = "Question " + (questionIndex + 1) + " / " + quizBank.length + " | Score: " + score;
+    }
+
+    nextQuestionBtn.addEventListener("click", () => {
+      questionIndex = (questionIndex + 1) % quizBank.length;
+      renderQuestion();
+    });
+
+    restartQuizBtn.addEventListener("click", () => {
+      questionIndex = 0;
+      score = 0;
+      shuffleArray(quizBank);
+      renderQuestion();
+    });
+
+    function showCards() {
+      tabCards.classList.add("active");
+      tabQuiz.classList.remove("active");
+      cardsPanel.classList.remove("hidden");
+      quizPanel.classList.add("hidden");
+    }
+
+    function showQuiz() {
+      tabQuiz.classList.add("active");
+      tabCards.classList.remove("active");
+      quizPanel.classList.remove("hidden");
+      cardsPanel.classList.add("hidden");
+    }
+
+    tabCards.addEventListener("click", showCards);
+    tabQuiz.addEventListener("click", showQuiz);
+
+    shuffleArray(quizBank);
+    renderCard();
+    renderQuestion();
+  </script>
+</body>
+</html>

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lab8 Pygame Architecture</title>
+  <style>
+    :root {
+      --bg: #f6f8fa;
+      --text: #1f2933;
+      --muted: #4a5561;
+      --panel: #ffffff;
+      --border: #d7dde4;
+      --accent: #0f6cbd;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.55 "Segoe UI", Tahoma, sans-serif;
+    }
+
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 26px 18px 42px;
+    }
+
+    h1, h2, h3 {
+      margin: 1.1em 0 0.4em;
+      line-height: 1.2;
+    }
+
+    p {
+      margin: 0.5em 0;
+    }
+
+    .lead {
+      color: var(--muted);
+    }
+
+    .diagram {
+      margin: 14px 0 8px;
+      padding: 14px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow-x: auto;
+    }
+
+    .explain {
+      color: var(--muted);
+      margin-top: 0;
+    }
+
+    code {
+      background: #ecf2f8;
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+
+    @media print {
+      body { background: #fff; }
+      .diagram { break-inside: avoid; }
+    }
+  </style>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, securityLevel: "loose" });
+  </script>
+</head>
+<body>
+  <main>
+    <h1>Lab8 Pygame Architecture</h1>
+    <p class="lead">This architecture document was regenerated from the current repository state on 04-27-2026. The project is a compact Pygame simulation where larger squares chase smaller squares, smaller squares flee larger ones, and all entities keep a random wander component.</p>
+
+    <h2>1. Project Inventory</h2>
+    <ul>
+      <li><code>main.py</code>: Entry point, event loop, simulation update, collision resolution, and rendering.</li>
+      <li><code>watch.py</code>: Development restart loop that relaunches <code>main.py</code> when <code>*.py</code> files change.</li>
+      <li><code>requirements.txt</code>: Python dependency list.</li>
+      <li><code>README.md</code>: Usage and controls.</li>
+      <li><code>REPORT.md</code>: Reflection and process summary.</li>
+      <li><code>JOURNAL.md</code>: Turn-by-turn interaction log.</li>
+      <li><code>docs/</code>: Generated architecture documentation.</li>
+    </ul>
+    <p>Assumptions: the repository currently uses script-level architecture instead of package-level modularization, and no automated test suite is present in the current tree.</p>
+
+    <h2>2. Diagrams</h2>
+
+    <h3>2.1 High-Level Module Map</h3>
+    <div class="diagram mermaid">
+      graph TD
+        U[User Input]
+        W[watch.py]
+        M[main.py]
+        P[pygame]
+        S[Fullscreen Surface]
+        D[Docs and Reports]
+
+        U --> M
+        W --> M
+        M --> P
+        P --> S
+        D --> M
+    </div>
+    <p class="explain">This diagram shows that runtime behavior is concentrated in main.py, with watch.py acting as a development helper and docs acting as supporting artifacts.</p>
+
+    <h3>2.2 Frame Pipeline (Runtime Data Flow)</h3>
+    <div class="diagram mermaid">
+      flowchart LR
+        A[Frame Start]
+        B[Poll Events]
+        C[Apply Controls]
+        D[Update Squares]
+        E[Resolve Collisions]
+        F[Render Scene and HUD]
+        G[Display Flip]
+        H[FPS Tick]
+
+        A --> B --> C --> D --> E --> F --> G --> H --> A
+    </div>
+    <p class="explain">The game loop is deterministic in ordering and stochastic in movement values, which balances readability with lively motion.</p>
+
+    <h3>2.3 Key Function Dependency Graph</h3>
+    <div class="diagram mermaid">
+      graph TD
+        MAIN[main]
+        MAKE[make_squares]
+        NEW[new_square]
+        OVER[overlaps]
+        UPD[update_square]
+        COL[resolve_collisions]
+        DRW[draw]
+        SPD[change_speed]
+        TOW[move_toward]
+        AWY[move_away]
+        LIM[limit_speed]
+        KEEP[keep_motion_alive]
+        COR[unstick_from_corners]
+        SFS[speed_for_size]
+        CFS[color_for_size]
+
+        MAIN --> MAKE
+        MAIN --> UPD
+        MAIN --> COL
+        MAIN --> DRW
+        MAIN --> SPD
+
+        MAKE --> NEW
+        MAKE --> OVER
+
+        UPD --> AWY
+        UPD --> TOW
+        UPD --> LIM
+        UPD --> KEEP
+        UPD --> COR
+
+        AWY --> TOW
+        LIM --> SFS
+        KEEP --> SFS
+
+        COL --> OVER
+        COL --> KEEP
+        COL --> COR
+
+        DRW --> CFS
+    </div>
+    <p class="explain">The dependency center of gravity is update_square plus resolve_collisions, while main remains the orchestrator of sequencing.</p>
+
+    <h3>2.4 Execution Lifecycle</h3>
+    <div class="diagram mermaid">
+      stateDiagram-v2
+        [*] --> Init
+        Init --> Spawn
+        Spawn --> Run
+
+        Run --> Run : Events + Update + Draw
+        Run --> Reset : R Key
+        Reset --> Run
+
+        Run --> Exit : ESC or Window Close
+        Exit --> [*]
+    </div>
+    <p class="explain">Lifecycle is minimal and explicit, which helps first-year students trace behavior quickly.</p>
+
+    <h2>3. Risks, Coupling, Improvement Opportunities</h2>
+    <ul>
+      <li><code>main.py</code> combines state, behavior, input, and rendering in one unit, creating tight coupling.</li>
+      <li>Square state is represented by dictionaries, which reduces type safety.</li>
+      <li>Collision handling uses pairwise checks O(n^2), suitable for small N but not scalable.</li>
+      <li>Randomness is not seeded, limiting exact reproducibility.</li>
+      <li>Fullscreen startup can be inconvenient in some teaching or recording setups.</li>
+    </ul>
+    <p>Potential improvements: introduce a Square dataclass, split code into simulation/render/input modules, add optional deterministic seeds, and add tests for pure helper functions.</p>
+
+    <h2>4. Quick Onboarding Checklist</h2>
+    <ol>
+      <li>Create and activate a virtual environment.</li>
+      <li>Install dependencies with <code>python -m pip install -r requirements.txt</code>.</li>
+      <li>Start the app with <code>python main.py</code>.</li>
+      <li>Use Up/Down or +/- for speed, R to reset, Esc to quit.</li>
+      <li>Use <code>python watch.py</code> for auto-restart during editing.</li>
+      <li>Review this document before major refactors.</li>
+    </ol>
+  </main>
+</body>
+</html>
